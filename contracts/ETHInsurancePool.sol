@@ -104,12 +104,12 @@ contract ETHInsurancePool {
         uint256 insuranceId
     ) external onlyAuthorizedToReimburse {
         require(
-            insuranceId > 0 && insuranceId <= insurances[client].length,
+            insuranceId >= 0 && insuranceId <= insurances[client].length,
             "Invalid insurance ID"
         );
 
-        // Get the insurance record (IDs are 1-indexed, array index is insuranceId - 1).
-        Insurance storage insurance = insurances[client][insuranceId - 1];
+        // Get the insurance record.
+        Insurance storage insurance = insurances[client][insuranceId];
 
         require(insurance.valid, "Insurance already used");
         require(
