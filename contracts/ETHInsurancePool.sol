@@ -46,7 +46,7 @@ contract ETHInsurancePool {
         _;
     }
 
-    /// @notice Modifier to restrict function calls to only the authorized contract.
+    /// @notice Modifier to restrict function calls to only the authorized contract for reimbursements.
     modifier onlyAuthorizedToReimburse() {
         require(msg.sender == authorizedToReimburseContract, "Not authorized");
         _;
@@ -65,7 +65,7 @@ contract ETHInsurancePool {
 
     /// @notice Allows users to buy an insurance policy by sending ETH.
     /// @param securedAmount The maximum amount of ETH that will be covered.
-    /// @param ipfsCid The IPFS CID of the document containing insurance details
+    /// @param ipfsCid The IPFS CID of the document containing insurance details.
     /// @dev The caller must send ETH with this transaction (as msg.value).
     function buyInsurance(
         uint256 securedAmount,
@@ -109,8 +109,9 @@ contract ETHInsurancePool {
         address client,
         uint256 insuranceId
     ) external onlyAuthorizedToReimburse {
+        // Adjusted the insuranceId check assuming 0-indexed storage.
         require(
-            insuranceId >= 0 && insuranceId <= insurances[client].length,
+            insuranceId < insurances[client].length,
             "Invalid insurance ID"
         );
 
@@ -136,5 +137,31 @@ contract ETHInsurancePool {
         require(success, "Transfer failed");
 
         emit Reimbursed(client, insuranceId, amount);
+    }
+
+    /// @notice Calculates the premium for an insurance contract.
+    /// @param depositAmount The amount the client is paying (initial deposit).
+    /// @param securedAmount The maximum coverage amount of the insurance.
+    /// @return premium The calculated premium.
+    ///
+    /// The formula used is:
+    /// premium = depositAmount + ((securedAmount - depositAmount) * securedAmount) / (reserves + 1 + securedAmount)
+    ///
+    /// This formula increases the premium toward the full securedAmount when the contract reserves
+    /// are low, and it keeps the premium near the depositAmount when reserves are high.
+    function calculatePremium(
+        uint256 depositAmount,
+        uint256 securedAmount
+    ) public view onlyAuthorizedToBuy returns (uint256) {
+        require(
+            depositAmount <= securedAmount,
+            "Deposit must be <= secured amount"
+        );
+        uint256 reserves = address(this).balance;
+        // Add 1 to reserves to avoid division by zero.
+        uint256 adjustedReserves = reserves + 1;
+        uint256 riskLoading = ((securedAmount - depositAmount) *
+            securedAmount) / (adjustedReserves + securedAmount);
+        return depositAmount + riskLoading;
     }
 }
