@@ -2,8 +2,11 @@
 pragma solidity ^0.8.0;
 
 contract ETHInsurancePool {
+    /// @notice The address allowed to purchase insurance.
+    address public authorizedToPurchaseContract;
+
     /// @notice The address allowed to execute reimbursements.
-    address public authorizedContract;
+    address public authorizedToReimburseContract;
 
     /// @notice Structure representing an insurance policy.
     struct Insurance {
@@ -32,22 +35,38 @@ contract ETHInsurancePool {
         uint256 amount
     );
 
-    /// @notice Modifier to restrict function calls to only the authorized contract.
-    modifier onlyAuthorized() {
-        require(msg.sender == authorizedContract, "Not authorized");
+    /// @notice Modifier to restrict function calls to only the authorized contract for buying insurance.
+    modifier onlyAuthorizedToBuy() {
+        require(
+            msg.sender == authorizedToPurchaseContract,
+            "Not authorized to buy"
+        );
         _;
     }
 
-    /// @notice Sets the authorized contract that can call reimburse.
-    /// @param _authorizedContract The address of the contract allowed to call reimburse.
-    constructor(address _authorizedContract) {
-        authorizedContract = _authorizedContract;
+    /// @notice Modifier to restrict function calls to only the authorized contract.
+    modifier onlyAuthorizedToReimburse() {
+        require(msg.sender == authorizedToReimburseContract, "Not authorized");
+        _;
+    }
+
+    /// @notice Sets the authorized contracts that can call reimburse and buy insurance.
+    /// @param _authorizedToPurchaseContract The address of the contract allowed to buy insurance.
+    /// @param _authorizedToReimburseContract The address of the contract allowed to call reimburse.
+    constructor(
+        address _authorizedToPurchaseContract,
+        address _authorizedToReimburseContract
+    ) {
+        authorizedToPurchaseContract = _authorizedToPurchaseContract;
+        authorizedToReimburseContract = _authorizedToReimburseContract;
     }
 
     /// @notice Allows users to buy an insurance policy by sending ETH.
     /// @param securedAmount The maximum amount of ETH that will be covered.
     /// @dev The caller must send ETH with this transaction (as msg.value).
-    function buyInsurance(uint256 securedAmount) external payable {
+    function buyInsurance(
+        uint256 securedAmount
+    ) external payable onlyAuthorizedToBuy {
         require(msg.value > 0, "Must send ETH to buy insurance");
 
         // Calculate the expiration time as one year from now.
@@ -83,7 +102,7 @@ contract ETHInsurancePool {
         uint256 amount,
         address client,
         uint256 insuranceId
-    ) external onlyAuthorized {
+    ) external onlyAuthorizedToReimburse {
         require(
             insuranceId > 0 && insuranceId <= insurances[client].length,
             "Invalid insurance ID"
