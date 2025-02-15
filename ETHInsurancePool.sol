@@ -46,17 +46,12 @@ contract ETHInsurancePool {
 
     /// @notice Allows users to buy an insurance policy by sending ETH.
     /// @param securedAmount The maximum amount of ETH that will be covered.
-    /// @param expirationTime The UNIX timestamp when this insurance expires.
     /// @dev The caller must send ETH with this transaction (as msg.value).
-    function buyInsurance(
-        uint256 securedAmount,
-        uint256 expirationTime
-    ) external payable {
+    function buyInsurance(uint256 securedAmount) external payable {
         require(msg.value > 0, "Must send ETH to buy insurance");
-        require(
-            expirationTime > block.timestamp,
-            "Expiration time must be in the future"
-        );
+
+        // Calculate the expiration time as one year from now.
+        uint256 expirationTime = block.timestamp + 365 days;
 
         // Create a new insurance record.
         Insurance memory newInsurance = Insurance({
