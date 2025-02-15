@@ -8,13 +8,16 @@ contract ETHInsurancePool {
     /// @notice The address allowed to execute reimbursements.
     address public authorizedToReimburseContract;
 
+    /// @notice The total amount currently covered by active insurances.
+    uint256 public totalSecuredAmount;
+
     /// @notice Structure representing an insurance policy.
     struct Insurance {
-        uint256 depositAmount; // The ETH deposited by the client.
+        uint256 depositAmount; // The ETH deposited by the client (i.e. the premium).
         uint256 securedAmount; // The maximum ETH that can be reimbursed.
         uint256 expirationTime; // Timestamp until which the insurance is valid.
         bool valid; // True if the insurance has not yet been executed.
-        string ipfsCid; // IPFS CID of the insurance details document
+        string ipfsCid; // IPFS CID of the insurance details document.
     }
 
     /// @notice Mapping from client address to their list of insurances.
@@ -63,15 +66,15 @@ contract ETHInsurancePool {
         authorizedToReimburseContract = _authorizedToReimburseContract;
     }
 
-    /// @notice Allows users to buy an insurance policy by sending ETH.
+    /// @notice Allows users to buy an insurance policy by sending ETH as premium.
     /// @param securedAmount The maximum amount of ETH that will be covered.
     /// @param ipfsCid The IPFS CID of the document containing insurance details.
-    /// @dev The caller must send ETH with this transaction (as msg.value).
+    /// @dev The caller must send ETH with this transaction (as msg.value), and msg.value should equal the calculated premium.
     function buyInsurance(
         uint256 securedAmount,
         string calldata ipfsCid
     ) external payable onlyAuthorizedToBuy {
-        require(msg.value > 0, "Must send ETH to buy insurance");
+        require(msg.value > 0, "Must send ETH as premium");
 
         // Calculate the expiration time as one year from now.
         uint256 expirationTime = block.timestamp + 365 days;
@@ -87,8 +90,11 @@ contract ETHInsurancePool {
 
         // Store the new insurance in the caller's list.
         insurances[msg.sender].push(newInsurance);
-        // Insurance IDs are 1-indexed (first insurance gets ID 1, etc.).
-        uint256 insuranceId = insurances[msg.sender].length;
+        uint256 insuranceId = insurances[msg.sender].length - 1;
+
+        // Increase the total covered amount.
+        totalSecuredAmount += securedAmount;
+
         emit InsuranceCreated(
             msg.sender,
             insuranceId,
@@ -109,7 +115,6 @@ contract ETHInsurancePool {
         address client,
         uint256 insuranceId
     ) external onlyAuthorizedToReimburse {
-        // Adjusted the insuranceId check assuming 0-indexed storage.
         require(
             insuranceId < insurances[client].length,
             "Invalid insurance ID"
@@ -129,8 +134,9 @@ contract ETHInsurancePool {
         );
         require(address(this).balance >= amount, "Insufficient pool balance");
 
-        // Mark the insurance as used before transferring to prevent reentrancy.
+        // Mark the insurance as used and remove its exposure.
         insurance.valid = false;
+        totalSecuredAmount -= insurance.securedAmount;
 
         // Transfer ETH to the client.
         (bool success, ) = client.call{value: amount}("");
@@ -139,29 +145,23 @@ contract ETHInsurancePool {
         emit Reimbursed(client, insuranceId, amount);
     }
 
-    /// @notice Calculates the premium for an insurance contract.
-    /// @param depositAmount The amount the client is paying (initial deposit).
-    /// @param securedAmount The maximum coverage amount of the insurance.
+    /// @notice Calculates the premium for an insurance contract based on the amount to be covered.
+    /// @param securedAmount The maximum coverage amount requested.
     /// @return premium The calculated premium.
     ///
     /// The formula used is:
-    /// premium = depositAmount + ((securedAmount - depositAmount) * securedAmount) / (reserves + 1 + securedAmount)
+    /// premium = securedAmount + (securedAmount * totalSecuredAmount) / (treasury + securedAmount)
     ///
-    /// This formula increases the premium toward the full securedAmount when the contract reserves
-    /// are low, and it keeps the premium near the depositAmount when reserves are high.
+    /// This formula loads the premium upward when the pool’s exposure (totalSecuredAmount) is high relative
+    /// to its treasury (the contract's balance). When the pool is well-funded compared to its active coverages,
+    /// the premium will be closer to the coverage amount.
     function calculatePremium(
-        uint256 depositAmount,
         uint256 securedAmount
     ) public view onlyAuthorizedToBuy returns (uint256) {
-        require(
-            depositAmount <= securedAmount,
-            "Deposit must be <= secured amount"
-        );
-        uint256 reserves = address(this).balance;
-        // Add 1 to reserves to avoid division by zero.
-        uint256 adjustedReserves = reserves + 1;
-        uint256 riskLoading = ((securedAmount - depositAmount) *
-            securedAmount) / (adjustedReserves + securedAmount);
-        return depositAmount + riskLoading;
+        uint256 treasury = address(this).balance;
+        // The risk loading is higher if total exposure is high relative to available treasury.
+        uint256 riskLoading = (securedAmount * totalSecuredAmount) /
+            (treasury + securedAmount);
+        return securedAmount + riskLoading;
     }
 }
