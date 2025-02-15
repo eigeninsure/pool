@@ -14,6 +14,7 @@ contract ETHInsurancePool {
         uint256 securedAmount; // The maximum ETH that can be reimbursed.
         uint256 expirationTime; // Timestamp until which the insurance is valid.
         bool valid; // True if the insurance has not yet been executed.
+        string ipfsCid; // IPFS CID of the insurance details document
     }
 
     /// @notice Mapping from client address to their list of insurances.
@@ -25,7 +26,8 @@ contract ETHInsurancePool {
         uint256 insuranceId,
         uint256 depositAmount,
         uint256 securedAmount,
-        uint256 expirationTime
+        uint256 expirationTime,
+        string ipfsCid
     );
 
     /// @notice Emitted when a reimbursement is executed.
@@ -63,9 +65,11 @@ contract ETHInsurancePool {
 
     /// @notice Allows users to buy an insurance policy by sending ETH.
     /// @param securedAmount The maximum amount of ETH that will be covered.
+    /// @param ipfsCid The IPFS CID of the document containing insurance details
     /// @dev The caller must send ETH with this transaction (as msg.value).
     function buyInsurance(
-        uint256 securedAmount
+        uint256 securedAmount,
+        string calldata ipfsCid
     ) external payable onlyAuthorizedToBuy {
         require(msg.value > 0, "Must send ETH to buy insurance");
 
@@ -77,7 +81,8 @@ contract ETHInsurancePool {
             depositAmount: msg.value,
             securedAmount: securedAmount,
             expirationTime: expirationTime,
-            valid: true
+            valid: true,
+            ipfsCid: ipfsCid
         });
 
         // Store the new insurance in the caller's list.
@@ -89,7 +94,8 @@ contract ETHInsurancePool {
             insuranceId,
             msg.value,
             securedAmount,
-            expirationTime
+            expirationTime,
+            ipfsCid
         );
     }
 
