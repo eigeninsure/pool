@@ -2,9 +2,6 @@
 pragma solidity ^0.8.9;
 
 contract ETHInsurancePool {
-    /// @notice The address allowed to create insurance.
-    address public authorizedToCreateContract;
-
     /// @notice The address allowed to execute reimbursements.
     address public authorizedToReimburseContract;
 
@@ -43,12 +40,6 @@ contract ETHInsurancePool {
         uint256 amount
     );
 
-    /// @notice Modifier to restrict function calls to only the authorized contract for creating insurances.
-    modifier onlyAuthorizedToCreateContract() {
-        require(msg.sender == authorizedToCreateContract, "Not authorized");
-        _;
-    }
-
     /// @notice Modifier to restrict function calls to only the authorized contract for reimbursements.
     modifier onlyAuthorizedToReimburse() {
         require(msg.sender == authorizedToReimburseContract, "Not authorized");
@@ -56,13 +47,8 @@ contract ETHInsurancePool {
     }
 
     /// @notice Sets the authorized contracts that can call create and reimburse insurance.
-    /// @param _authorizedToCreateContract The address of the contract allowed to call create.
     /// @param _authorizedToReimburseContract The address of the contract allowed to call reimburse.
-    constructor(
-        address _authorizedToCreateContract,
-        address _authorizedToReimburseContract
-    ) {
-        authorizedToCreateContract = _authorizedToCreateContract;
+    constructor(address _authorizedToReimburseContract) {
         authorizedToReimburseContract = _authorizedToReimburseContract;
     }
 
@@ -76,11 +62,7 @@ contract ETHInsurancePool {
         address client,
         uint256 securedAmount,
         string calldata ipfsCid
-    )
-        external
-        onlyAuthorizedToCreateContract
-        returns (uint256 insuranceId, uint256 depositAmount)
-    {
+    ) external returns (uint256 insuranceId, uint256 depositAmount) {
         depositAmount = calculatePremium(securedAmount);
         uint256 expirationTime = block.timestamp + 365 days;
         bool activated = false;
@@ -204,7 +186,7 @@ contract ETHInsurancePool {
     /// the premium will be closer to the coverage amount.
     function calculatePremium(
         uint256 securedAmount
-    ) private view onlyAuthorizedToCreateContract returns (uint256) {
+    ) private view returns (uint256) {
         uint256 treasury = address(this).balance;
         // The risk loading is higher if total exposure is high relative to available treasury.
         uint256 riskLoading = (securedAmount * totalSecuredAmount) /
