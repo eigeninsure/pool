@@ -45,10 +45,7 @@ contract ETHInsurancePool {
 
     /// @notice Modifier to restrict function calls to only the authorized contract for creating insurances.
     modifier onlyAuthorizedToCreateContract() {
-        require(
-            msg.sender == authorizedToCreateContract,
-            "Not authorized to buy"
-        );
+        require(msg.sender == authorizedToCreateContract, "Not authorized");
         _;
     }
 
@@ -71,24 +68,27 @@ contract ETHInsurancePool {
 
     /// @notice Allows the authorized contract to create an insurance policy for a client without activating it.
     /// @param client The address of the client for whom the insurance is being created.
-    /// @param depositAmount The amount of ETH initially deposited.
     /// @param securedAmount The maximum amount of ETH that will be covered.
     /// @param ipfsCid The IPFS CID of the document containing insurance details.
     /// @return insuranceId The ID of the created insurance.
+    /// @return depositAmount The calculated deposit amount for the insurance.
     function createInsurance(
         address client,
-        uint256 depositAmount,
         uint256 securedAmount,
         string calldata ipfsCid
-    ) external onlyAuthorizedToCreateContract returns (uint256 insuranceId) {
-        // Calculate the expiration time as one year from now.
+    )
+        external
+        onlyAuthorizedToCreateContract
+        returns (uint256 insuranceId, uint256 depositAmount)
+    {
+        depositAmount = calculatePremium(securedAmount);
         uint256 expirationTime = block.timestamp + 365 days;
         bool activated = false;
         bool valid = true;
 
         // Create a new insurance record.
         Insurance memory newInsurance = Insurance({
-            depositAmount: depositAmount, // Take deposit amount as a parameter.
+            depositAmount: depositAmount,
             securedAmount: securedAmount,
             expirationTime: expirationTime,
             activated: activated, // Not activated initially.
@@ -164,7 +164,7 @@ contract ETHInsurancePool {
         uint256 amount,
         address client,
         uint256 insuranceId
-    ) external onlyAuthorizedToReimburse {
+    ) private onlyAuthorizedToReimburse {
         require(
             insuranceId < insurances[client].length,
             "Invalid insurance ID"
