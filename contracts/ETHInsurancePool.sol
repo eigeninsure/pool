@@ -128,7 +128,6 @@ contract ETHInsurancePool {
         require(msg.value > insurance.depositAmount, "Insufficient ETH sent");
 
         // Activate the insurance.
-        insurance.depositAmount = msg.value;
         insurance.activated = true;
 
         // Increase the total covered amount.
@@ -138,15 +137,13 @@ contract ETHInsurancePool {
         uint256 excessAmount = msg.value - insurance.depositAmount;
 
         // Return the excess ETH to the sender.
-        if (excessAmount > 0) {
-            (bool success, ) = msg.sender.call{value: excessAmount}("");
-            require(success, "Transfer of excess ETH failed");
-        }
+        (bool success, ) = msg.sender.call{value: excessAmount}("");
+        require(success, "Transfer of excess ETH failed");
 
         emit InsuranceCreated(
             msg.sender,
             insuranceId,
-            msg.value,
+            insurance.depositAmount,
             insurance.securedAmount,
             insurance.expirationTime,
             true,
@@ -164,7 +161,7 @@ contract ETHInsurancePool {
         uint256 amount,
         address client,
         uint256 insuranceId
-    ) private onlyAuthorizedToReimburse {
+    ) external onlyAuthorizedToReimburse {
         require(
             insuranceId < insurances[client].length,
             "Invalid insurance ID"
@@ -207,7 +204,7 @@ contract ETHInsurancePool {
     /// the premium will be closer to the coverage amount.
     function calculatePremium(
         uint256 securedAmount
-    ) public view onlyAuthorizedToCreateContract returns (uint256) {
+    ) private view onlyAuthorizedToCreateContract returns (uint256) {
         uint256 treasury = address(this).balance;
         // The risk loading is higher if total exposure is high relative to available treasury.
         uint256 riskLoading = (securedAmount * totalSecuredAmount) /
